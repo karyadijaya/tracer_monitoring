@@ -351,8 +351,6 @@ function drawHopsChart(ips) {
     const innerHeight = Math.min(height, Math.max(1, activeData.length) * 55);
     const y = d3.scaleBand().domain(activeData.map(d => d.ip)).range([0, innerHeight]).padding(0.4);
     const x = d3.scaleLinear().domain([0, d3.max(activeData, d => d.hops) || 10]).range([0, width]);
-
-    svg.append('g').attr('transform', `translate(0,${innerHeight})`).call(d3.axisBottom(x).ticks(5)).selectAll('text').attr('fill', '#6B7280');
     
     // Draw subtle Y-axis line without labels
     svg.append('g').call(d3.axisLeft(y).tickSize(0).tickFormat('')).select('.domain').attr('stroke', 'rgba(255,255,255,0.04)');
