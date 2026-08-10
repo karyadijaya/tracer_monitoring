@@ -85,9 +85,9 @@ Untuk lingkungan produksi, sangat disarankan menggunakan `systemd` agar aplikasi
    After=network.target
 
    [Service]
-   User=root
-   WorkingDirectory=/path/to/tracer_monitoring
-   ExecStart=/path/to/tracer_monitoring/venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 9000
+   User=noc-scm
+   WorkingDirectory=/var/project/tracer_monitoring
+   ExecStart=/var/project/tracer_monitoring/venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 9000
    Restart=always
 
    [Install]
