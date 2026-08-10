@@ -253,10 +253,11 @@ function drawUnifiedTopology(ips) {
         .attr('stroke-width', 2.5);
 
     node.append('text')
-        .attr('dy', -14)
-        .attr('text-anchor', 'middle')
+        .attr('dy', d => d.data.is_target ? 4 : -14)
+        .attr('x', d => d.data.is_target ? 18 : 0)
+        .attr('text-anchor', d => d.data.is_target ? 'start' : 'middle')
         .attr('font-size', '10px')
-        .attr('font-weight', '500')
+        .attr('font-weight', d => d.data.is_target ? '600' : '500')
         .attr('fill', '#374151')
         .text(d => {
             if (d.data.ip === 'localhost') return 'Source';
