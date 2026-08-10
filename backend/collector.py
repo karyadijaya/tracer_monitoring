@@ -112,19 +112,19 @@ def _flush_to_influx(target_ip: str, hops: dict) -> None:
             max_hop  = max(hops.keys())
             last_hop = hops[max_hop]
             max_worst = max([h.get("worst", 0.0) for h in hops.values()])
-            is_reached_str = 't' if cache[target_ip]["is_reached"] else 'f'
+            is_reached_val = 1.0 if cache[target_ip]["is_reached"] else 0.0
             
             end_loss = float(last_hop.get("loss_pct", 0.0) or 0.0)
             end_avg = float(last_hop.get("avg", 0.0) or 0.0)
             end_stdev = float(last_hop.get("stdev", 0.0) or 0.0)
             max_worst = float(max_worst or 0.0)
             
-            lines.append(f"mtr_summary,target_ip={target_ip} total_hops={int(max_hop)}i,is_reached={is_reached_str},end_loss_pct={end_loss},end_avg_rtt={end_avg},end_worst_rtt={max_worst},end_stdev_rtt={end_stdev} {now_ns}")
+            lines.append(f"mtr_summary,target_ip={target_ip} total_hops={float(max_hop)},is_reached={is_reached_val},end_loss_pct={end_loss},end_avg_rtt={end_avg},end_worst_rtt={max_worst},end_stdev_rtt={end_stdev} {now_ns}")
 
         if not lines:
             return
             
-        data = "\\n".join(lines).encode('utf-8')
+        data = "\n".join(lines).encode('utf-8')
         req = urllib.request.Request(
             f"{INFLUX_URL}/api/v2/write?org={INFLUX_ORG}&bucket={INFLUX_BUCKET}&precision=ns",
             data=data,
