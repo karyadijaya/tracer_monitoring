@@ -20,8 +20,8 @@ import subprocess
 import time
 from datetime import datetime, timezone
 
-from influxdb_client import InfluxDBClient, Point
-from influxdb_client.client.write_api import SYNCHRONOUS
+import urllib.request
+import urllib.error
 
 from backend.config import (
     MTR_MAX_HOPS,
@@ -42,12 +42,6 @@ from backend.database import get_db, TargetIP
 # }
 cache: dict = {}
 _active_tasks: dict[str, asyncio.Task] = {}
-
-# ─── InfluxDB ─────────────────────────────────────────────────────────────────
-_influx_client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-_write_api     = _influx_client.write_api(write_options=SYNCHRONOUS)
-
-
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -101,39 +95,42 @@ def _parse_mtr_json(mtr_output: str, target_ip: str) -> dict | None:
 def _flush_to_influx(target_ip: str, hops: dict) -> None:
     """Tulis semua hop + summary ke InfluxDB."""
     try:
-        points = []
+        lines = []
+        now_ns = int(time.time() * 1_000_000_000)
         for hop_num, h in hops.items():
-            points.append(
-                Point("mtr_hop_stats")
-                .tag("target_ip",  target_ip)
-                .tag("hop_number", str(hop_num))
-                .tag("hop_ip",     h.get("ip", "???"))
-                .field("loss_pct",  h.get("loss_pct", 0.0))
-                .field("avg_rtt",   h.get("avg",      0.0))
-                .field("best_rtt",  h.get("best",     0.0))
-                .field("worst_rtt", h.get("worst",    0.0))
-                .field("last_rtt",  h.get("last",     0.0))
-                .field("stdev_rtt", h.get("stdev",    0.0))
-                .time(datetime.now(timezone.utc))
-            )
+            hop_ip = h.get("ip", "???")
+            loss = h.get("loss_pct", 0.0)
+            avg = h.get("avg", 0.0)
+            best = h.get("best", 0.0)
+            worst = h.get("worst", 0.0)
+            last = h.get("last", 0.0)
+            stdev = h.get("stdev", 0.0)
+            lines.append(f"mtr_hop_stats,target_ip={target_ip},hop_number={hop_num},hop_ip={hop_ip} loss_pct={loss},avg_rtt={avg},best_rtt={best},worst_rtt={worst},last_rtt={last},stdev_rtt={stdev} {now_ns}")
 
         if hops:
             max_hop  = max(hops.keys())
             last_hop = hops[max_hop]
             max_worst = max([h.get("worst", 0.0) for h in hops.values()])
-            points.append(
-                Point("mtr_summary")
-                .tag("target_ip", target_ip)
-                .field("total_hops",   float(max_hop))
-                .field("is_reached",   1.0 if cache[target_ip]["is_reached"] else 0.0)
-                .field("end_loss_pct", last_hop.get("loss_pct", 0.0))
-                .field("end_avg_rtt",  last_hop.get("avg",      0.0))
-                .field("end_worst_rtt", float(max_worst))
-                .field("end_stdev_rtt", float(last_hop.get("stdev", 0.0)))
-                .time(datetime.now(timezone.utc))
-            )
+            is_reached = 1.0 if cache[target_ip]["is_reached"] else 0.0
+            
+            end_loss = last_hop.get("loss_pct", 0.0)
+            end_avg = last_hop.get("avg", 0.0)
+            end_stdev = last_hop.get("stdev", 0.0)
+            
+            lines.append(f"mtr_summary,target_ip={target_ip} total_hops={float(max_hop)},is_reached={is_reached},end_loss_pct={end_loss},end_avg_rtt={end_avg},end_worst_rtt={float(max_worst)},end_stdev_rtt={float(end_stdev)} {now_ns}")
 
-        _write_api.write(bucket=INFLUX_BUCKET, org=INFLUX_ORG, record=points)
+        if not lines:
+            return
+            
+        data = "\\n".join(lines).encode('utf-8')
+        req = urllib.request.Request(
+            f"{INFLUX_URL}/api/v2/write?org={INFLUX_ORG}&bucket={INFLUX_BUCKET}&precision=ns",
+            data=data,
+            headers={"Authorization": f"Token {INFLUX_TOKEN}", "Content-Type": "text/plain; charset=utf-8"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=5) as response:
+            pass
     except Exception as e:
         print(f"[InfluxDB] Write error → {target_ip}: {e}")
 

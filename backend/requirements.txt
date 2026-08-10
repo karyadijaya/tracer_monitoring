@@ -1,4 +1,3 @@
 fastapi
 uvicorn[standard]
-influxdb-client
 sqlalchemy

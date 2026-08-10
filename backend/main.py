@@ -7,6 +7,10 @@ Collector MTR berjalan sebagai background asyncio task.
 
 import asyncio
 import os
+import urllib.request
+import urllib.error
+import csv
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException
@@ -111,12 +115,14 @@ async def remove_target(ip: str, db: Session = Depends(get_db)):
     db.commit()
     update_target_watcher(db)
     return {"status": "ok", "message": "Target removed"}
+def _fetch_influx_csv(req):
+    with urllib.request.urlopen(req, timeout=10) as response:
+        return response.read().decode('utf-8').strip().split('\n')
+
 @app.get("/api/history")
 async def api_history(minutes: int = 30):
     """Ambil riwayat data metrik dari InfluxDB berdasarkan menit."""
     try:
-        from influxdb_client import InfluxDBClient
-        
         if minutes <= 30:
             every = "10s"
         elif minutes <= 60:
@@ -137,26 +143,41 @@ async def api_history(minutes: int = 30):
           |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
         '''
         
-        client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
-        tables = client.query_api().query(query)
+        req = urllib.request.Request(
+            f"{INFLUX_URL}/api/v2/query?org={INFLUX_ORG}",
+            data=json.dumps({"query": query, "dialect": {"annotations": [], "header": True}}).encode('utf-8'),
+            headers={
+                "Authorization": f"Token {INFLUX_TOKEN}",
+                "Content-Type": "application/json",
+                "Accept": "application/csv"
+            },
+            method="POST"
+        )
+        
+        lines = await asyncio.to_thread(_fetch_influx_csv, req)
         
         result = {}
-        for table in tables:
-            for record in table.records:
-                target_ip = record.values.get("target_ip")
-                if not target_ip:
-                    continue
-                if target_ip not in result:
-                    result[target_ip] = []
+        reader = csv.DictReader(lines)
+        for row in reader:
+            if not row or '_time' not in row:
+                continue
+            target_ip = row.get("target_ip")
+            if not target_ip:
+                continue
+            if target_ip not in result:
+                result[target_ip] = []
                 
-                result[target_ip].append({
-                    "time": record.get_time().isoformat(),
-                    "loss": round(record.values.get("end_loss_pct") or 0, 1),
-                    "worst": round(record.values.get("end_worst_rtt") or 0, 2),
-                    "stdev": round(record.values.get("end_stdev_rtt") or 0, 2)
-                })
-        
-        client.close()
+            loss = float(row.get("end_loss_pct") or 0)
+            worst = float(row.get("end_worst_rtt") or 0)
+            stdev = float(row.get("end_stdev_rtt") or 0)
+            
+            result[target_ip].append({
+                "time": row["_time"],
+                "loss": round(loss, 1),
+                "worst": round(worst, 2),
+                "stdev": round(stdev, 2)
+            })
+            
         return JSONResponse(content=result)
     except Exception as e:
         print(f"[History API] Error: {e}")
@@ -168,9 +189,9 @@ async def api_status():
     # Cek InfluxDB
     influx_ok = False
     try:
-        from influxdb_client import InfluxDBClient
-        with InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG) as c:
-            influx_ok = c.ping()
+        req = urllib.request.Request(f"{INFLUX_URL}/ping", method="GET")
+        with urllib.request.urlopen(req, timeout=3) as res:
+            influx_ok = res.status in (200, 204)
     except Exception:
         influx_ok = False
 
