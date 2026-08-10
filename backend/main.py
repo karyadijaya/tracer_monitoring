@@ -1,0 +1,205 @@
+"""
+main.py
+=======
+FastAPI server — menyajikan dashboard HTML dan REST API.
+Collector MTR berjalan sebagai background asyncio task.
+"""
+
+import asyncio
+import os
+from pathlib import Path
+
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
+from backend.collector import cache, start_all_collectors, update_target_watcher
+from backend.config import INFLUX_URL, INFLUX_ORG, INFLUX_BUCKET, INFLUX_TOKEN
+from backend.database import get_db, TargetIP
+
+# ─── Inisialisasi App ─────────────────────────────────────────────────────────
+app = FastAPI(title="MTR Traceroute Monitor", version="1.0.0")
+
+# Serve static files (CSS, JS)
+STATIC_DIR = Path(__file__).parent.parent / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+# ─── Lifecycle: start collector saat app start ───────────────────────────────
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(start_all_collectors())
+    print("[Server] MTR collectors started.")
+
+
+# ─── Routes ──────────────────────────────────────────────────────────────────
+@app.get("/", response_class=HTMLResponse)
+async def serve_dashboard():
+    """Serve halaman utama dashboard."""
+    index_path = STATIC_DIR / "index.html"
+    return HTMLResponse(content=index_path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/latest")
+async def api_latest():
+    """
+    Kembalikan snapshot data MTR terbaru dari semua target.
+    Format: { "target_ip": { hops, status, last_update, is_reached }, ... }
+    """
+    result = {}
+    for ip, data in cache.items():
+        hops_list = []
+        for hop_num in sorted(data["hops"].keys()):
+            h = data["hops"][hop_num]
+            hops_list.append({
+                "hop":      hop_num,
+                "ip":       h.get("ip",       "???"),
+                "avg":      round(h.get("avg",      0.0), 3),
+                "best":     round(h.get("best",     0.0), 3),
+                "worst":    round(h.get("worst",    0.0), 3),
+                "last":     round(h.get("last",     0.0), 3),
+                "stdev":    round(h.get("stdev",    0.0), 3),
+                "loss_pct": round(h.get("loss_pct", 0.0), 1),
+            })
+        result[ip] = {
+            "hops":        hops_list,
+            "status":      data["status"],
+            "last_update": data["last_update"],
+            "is_reached":  data["is_reached"],
+        }
+    return JSONResponse(content=result)
+
+class TargetCreate(BaseModel):
+    ip_address: str
+    description: str = ""
+
+@app.get("/api/targets")
+async def api_targets(db: Session = Depends(get_db)):
+    """Kembalikan daftar IP target dari database beserta namanya."""
+    targets = db.query(TargetIP).filter(TargetIP.is_active == True).all()
+    result = [{"ip": t.ip_address, "name": t.description} for t in targets]
+    return JSONResponse(content={"targets": result})
+
+@app.post("/api/targets")
+async def add_target(target: TargetCreate, db: Session = Depends(get_db)):
+    """Tambahkan IP target baru."""
+    existing = db.query(TargetIP).filter(TargetIP.ip_address == target.ip_address).first()
+    if existing:
+        if not existing.is_active:
+            existing.is_active = True
+            db.commit()
+            update_target_watcher(db)
+            return {"status": "ok", "message": "Target reactivated"}
+        raise HTTPException(status_code=400, detail="IP already exists")
+    
+    new_target = TargetIP(ip_address=target.ip_address, description=target.description)
+    db.add(new_target)
+    db.commit()
+    update_target_watcher(db)
+    return {"status": "ok", "message": "Target added"}
+
+@app.delete("/api/targets/{ip}")
+async def remove_target(ip: str, db: Session = Depends(get_db)):
+    """Hapus IP target (soft delete)."""
+    target = db.query(TargetIP).filter(TargetIP.ip_address == ip).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="IP not found")
+    
+    target.is_active = False
+    db.commit()
+    update_target_watcher(db)
+    return {"status": "ok", "message": "Target removed"}
+@app.get("/api/history")
+async def api_history(minutes: int = 30):
+    """Ambil riwayat data metrik dari InfluxDB berdasarkan menit."""
+    try:
+        from influxdb_client import InfluxDBClient
+        
+        if minutes <= 30:
+            every = "10s"
+        elif minutes <= 60:
+            every = "30s"
+        elif minutes <= 360:
+            every = "2m"
+        elif minutes <= 720:
+            every = "5m"
+        else:
+            every = "10m"
+
+        query = f'''
+        from(bucket: "{INFLUX_BUCKET}")
+          |> range(start: -{minutes}m)
+          |> filter(fn: (r) => r._measurement == "mtr_summary")
+          |> filter(fn: (r) => r._field == "end_loss_pct" or r._field == "end_worst_rtt" or r._field == "end_stdev_rtt")
+          |> aggregateWindow(every: {every}, fn: mean, createEmpty: false)
+          |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+        '''
+        
+        client = InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG)
+        tables = client.query_api().query(query)
+        
+        result = {}
+        for table in tables:
+            for record in table.records:
+                target_ip = record.values.get("target_ip")
+                if not target_ip:
+                    continue
+                if target_ip not in result:
+                    result[target_ip] = []
+                
+                result[target_ip].append({
+                    "time": record.get_time().isoformat(),
+                    "loss": round(record.values.get("end_loss_pct") or 0, 1),
+                    "worst": round(record.values.get("end_worst_rtt") or 0, 2),
+                    "stdev": round(record.values.get("end_stdev_rtt") or 0, 2)
+                })
+        
+        client.close()
+        return JSONResponse(content=result)
+    except Exception as e:
+        print(f"[History API] Error: {e}")
+        return JSONResponse(content={}, status_code=500)
+
+@app.get("/api/status")
+async def api_status():
+    """Health check: status koneksi InfluxDB dan status per-target."""
+    # Cek InfluxDB
+    influx_ok = False
+    try:
+        from influxdb_client import InfluxDBClient
+        with InfluxDBClient(url=INFLUX_URL, token=INFLUX_TOKEN, org=INFLUX_ORG) as c:
+            influx_ok = c.ping()
+    except Exception:
+        influx_ok = False
+
+    db = next(get_db())
+    active_targets = db.query(TargetIP).filter(TargetIP.is_active == True).all()
+    targets_status = {
+        t.ip_address: cache.get(t.ip_address, {}).get("status", "Unknown") for t in active_targets
+    }
+
+    return JSONResponse(content={
+        "influxdb": "ok" if influx_ok else "error",
+        "influxdb_url": INFLUX_URL,
+        "targets": targets_status,
+    })
+
+
+@app.get("/metrics")
+async def prometheus_metrics():
+    """Endpoint Prometheus-format untuk scraping external."""
+    from fastapi.responses import PlainTextResponse
+    lines = []
+    for ip, data in cache.items():
+        safe_ip = ip.replace(".", "_")
+        hops = data["hops"]
+        if hops:
+            max_hop = max(hops.keys())
+            last_hop = hops[max_hop]
+            lines.append(f'mtr_total_hops{{target_ip="{ip}"}} {max_hop}')
+            lines.append(f'mtr_reachable{{target_ip="{ip}"}} {1 if data["is_reached"] else 0}')
+            lines.append(f'mtr_end_loss_pct{{target_ip="{ip}"}} {last_hop.get("loss_pct", 0.0):.2f}')
+            lines.append(f'mtr_end_avg_rtt{{target_ip="{ip}"}} {last_hop.get("avg", 0.0):.3f}')
+    return PlainTextResponse("\n".join(lines) + "\n")

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRACEROUTE MONITOR — NOC Dashboard</title>
+    <meta name="description" content="Real-time MTR traceroute network monitoring dashboard for NOC operations.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Alias agar vis-network bisa menemukan font dengan nama 'FontAwesome' -->
+    <style>
+        @font-face {
+            font-family: 'FontAwesome';
+            src: url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/webfonts/fa-solid-900.woff2') format('woff2');
+            font-weight: 900;
+            font-style: normal;
+        }
+    </style>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <!-- ── NAVBAR ─────────────────────────────────────────────────────── -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <i class="fa-solid fa-route navbar-icon"></i>
+            <div>
+                <span class="navbar-title">TRACEROUTE MONITOR</span>
+                <span class="navbar-sub">NOC Operations Dashboard</span>
+            </div>
+        </div>
+        <div class="navbar-status">
+            <div class="status-pill" id="influx-status">
+                <span class="status-dot"></span>
+                <span class="status-text">InfluxDB</span>
+            </div>
+            <div class="status-pill status-live">
+                <span class="status-dot pulse"></span>
+                <span class="status-text">Live</span>
+            </div>
+            <span class="navbar-time" id="navbar-time">--:--:--</span>
+        </div>
+    </nav>
+
+    <!-- ── OVERVIEW GRID (semua target sekaligus) ─────────────────────── -->
+    <!-- ── MAIN LAYOUT ──────────────────────────────────────────── -->
+    <main>
+        <!-- Top Control Bar (Target Management) -->
+        <section class="control-bar">
+            <h2 class="section-title" style="margin-bottom:0;"><i class="fa-solid fa-crosshairs"></i> Target Management</h2>
+            <div class="target-form" style="justify-content: space-between; display: flex;">
+                <div style="display: flex; gap: 1rem; align-items: center;">
+                    <input type="text" id="new-target-ip" placeholder="IP Address (e.g. 8.8.8.8)" class="input-target">
+                    <input type="text" id="new-target-name" placeholder="Name (Optional)" class="input-target" style="width: 150px;">
+                    <button class="btn btn-primary" onclick="addTarget()"><i class="fa-solid fa-plus"></i> Add Target</button>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="time-range" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Time Range:</label>
+                    <select id="time-range" class="input-target" style="padding: 6px 12px; width: auto;" onchange="window.onTimeRangeChange()">
+                        <option value="15">Last 15m</option>
+                        <option value="30" selected>Last 30m</option>
+                        <option value="60">Last 1h</option>
+                        <option value="180">Last 3h</option>
+                        <option value="360">Last 6h</option>
+                        <option value="720">Last 12h</option>
+                        <option value="1440">Last 24h</option>
+                    </select>
+                </div>
+            </div>
+            <div id="target-list" class="target-list">
+                <!-- Diisi dari JS -->
+            </div>
+        </section>
+
+        <!-- Row 1: Hops and Topology -->
+        <section class="topo-row">
+            <div class="panel chart-panel" style="height: 500px;">
+                <div class="panel-header">
+                    <i class="fa-solid fa-diagram-project" style="color:var(--success)"></i>
+                    Total Hops per Target
+                </div>
+                <div class="chart-wrap" id="hops-chart"></div>
+            </div>
+            
+            <div class="panel topo-panel" style="height: 500px;">
+                <div class="panel-header">
+                    <i class="fa-solid fa-network-wired" style="color:var(--accent)"></i>
+                    Hop Network Topology
+                    <span class="panel-hint">(Shows combined path for all active targets)</span>
+                </div>
+                <div id="network-topology"></div>
+            </div>
+        </section>
+
+        <!-- Row 2: Metrics Grid -->
+        <section class="metrics-grid">
+            
+            <div class="panel chart-panel">
+                <div class="panel-header">
+                    <i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i>
+                    End-to-End Packet Loss (%)
+                </div>
+                <div class="chart-wrap" id="loss-chart"></div>
+            </div>
+
+            <div class="panel chart-panel">
+                <div class="panel-header">
+                    <i class="fa-solid fa-stopwatch" style="color:var(--warning)"></i>
+                    Worst Latency Spikes (ms)
+                </div>
+                <div class="chart-wrap" id="latency-worst-chart"></div>
+            </div>
+
+            <div class="panel chart-panel">
+                <div class="panel-header">
+                    <i class="fa-solid fa-chart-area" style="color:var(--accent)"></i>
+                    StDev RTT (Network Stability)
+                </div>
+                <div class="chart-wrap" id="stdev-chart"></div>
+            </div>
+        </section>
+        
+        <!-- Row 3: Detail Data Table -->
+        <section class="panel table-panel">
+            <div class="panel-header">
+                <i class="fa-solid fa-table" style="color:var(--text-muted)"></i>
+                Latest Metrics Table
+            </div>
+            <div class="table-wrap">
+                <table id="summary-table">
+                    <thead>
+                        <tr>
+                            <th>Target IP</th>
+                            <th>Status</th>
+                            <th>Hops</th>
+                            <th>Avg RTT</th>
+                            <th>Worst RTT</th>
+                            <th>StDev</th>
+                            <th>End Loss%</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summary-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- Tooltip D3 -->
+    <div id="d3-tooltip" class="d3-tooltip"></div>
+
+    <script src="/static/app.js?v=2"></script>
+</body>
+</html>
