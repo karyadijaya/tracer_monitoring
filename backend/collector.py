@@ -198,7 +198,7 @@ def _run_mtr_blocking(target_ip: str) -> str | None:
                 "mtr",
                 "--report",        # mode report: satu scan lalu keluar
                 "--json",          # output JSON
-                "--no-dns",        # tidak resolve hostname (lebih cepat)
+                "-b",              # show both IP and hostname if possible (but JSON might only output host)
                 "-m", str(MTR_MAX_HOPS),
                 "-c", "3",         # 3 probe per hop
                 "-i", "1.0",       # minimum interval untuk non-root (1.0 detik)

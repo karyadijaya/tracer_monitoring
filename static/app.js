@@ -261,7 +261,7 @@ function drawUnifiedTopology(ips) {
         .text(d => {
             if (d.data.ip === 'localhost') return 'Source';
             if (d.data.is_target) return getTargetName(d.data.ip);
-            return `Hop ${d.data.hop}`;
+            return d.data.ip !== 'no reply' ? `Hop ${d.data.hop}` : `Hop ${d.data.hop} (Timeout)`;
         });
 
     // Tooltip implementation
@@ -272,7 +272,7 @@ function drawUnifiedTopology(ips) {
             const color = (d.data.loss_pct > 10) ? '#EF4444' : (d.data.loss_pct > 0) ? '#F59E0B' : '#10B981';
             tooltip.innerHTML = `
                 <b>Hop ${d.data.hop}</b><br>
-                IP: ${d.data.ip}<br>
+                Host/IP: ${d.data.ip}<br>
                 Loss: <b style="color:${color}">${d.data.loss_pct}%</b><br>
                 Avg: ${d.data.avg} ms &nbsp; Best: ${d.data.best || d.data.avg} ms<br>
                 Worst: ${d.data.worst || d.data.avg} ms &nbsp; StDev: ${d.data.stdev || 0}
