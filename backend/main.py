@@ -151,7 +151,8 @@ async def api_history(minutes: int = 30):
             headers={
                 "Authorization": f"Token {INFLUX_TOKEN}",
                 "Content-Type": "application/json",
-                "Accept": "application/csv"
+                "Accept": "application/csv",
+                "User-Agent": "influxdb-client-python/1.36.0"
             },
             method="POST"
         )
@@ -203,7 +204,7 @@ async def api_status():
     # Cek InfluxDB
     influx_ok = False
     try:
-        req = urllib.request.Request(f"{INFLUX_URL}/ping", method="GET")
+        req = urllib.request.Request(f"{INFLUX_URL}/ping", method="GET", headers={"User-Agent": "influxdb-client-python/1.36.0"})
         with urllib.request.urlopen(req, timeout=3) as res:
             influx_ok = res.status in (200, 204)
     except Exception:

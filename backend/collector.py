@@ -126,7 +126,11 @@ def _flush_to_influx(target_ip: str, hops: dict) -> None:
         req = urllib.request.Request(
             f"{INFLUX_URL}/api/v2/write?org={INFLUX_ORG}&bucket={INFLUX_BUCKET}&precision=ns",
             data=data,
-            headers={"Authorization": f"Token {INFLUX_TOKEN}", "Content-Type": "text/plain; charset=utf-8"},
+            headers={
+                "Authorization": f"Token {INFLUX_TOKEN}", 
+                "Content-Type": "text/plain; charset=utf-8",
+                "User-Agent": "influxdb-client-python/1.36.0"
+            },
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=5) as response:
