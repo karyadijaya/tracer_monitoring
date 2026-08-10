@@ -98,7 +98,8 @@ def _flush_to_influx(target_ip: str, hops: dict) -> None:
         lines = []
         now_ns = int(time.time() * 1_000_000_000)
         for hop_num, h in hops.items():
-            hop_ip = str(h.get("ip", "???")).replace(" ", "\\ ").replace(",", "\\,").replace("=", "\\=")
+            hop_ip_raw = str(h.get("ip", "???"))
+            hop_ip = hop_ip_raw.split()[0].replace(",", "_").replace("=", "_")
             loss = float(h.get("loss_pct", 0.0) or 0.0)
             avg = float(h.get("avg", 0.0) or 0.0)
             best = float(h.get("best", 0.0) or 0.0)
