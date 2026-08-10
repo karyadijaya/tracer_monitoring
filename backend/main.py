@@ -93,6 +93,7 @@ async def add_target(target: TargetCreate, db: Session = Depends(get_db)):
     if existing:
         if not existing.is_active:
             existing.is_active = True
+            existing.description = target.description
             db.commit()
             update_target_watcher(db)
             return {"status": "ok", "message": "Target reactivated"}
