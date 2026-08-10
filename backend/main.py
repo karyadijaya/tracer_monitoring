@@ -181,9 +181,21 @@ async def api_history(minutes: int = 30):
             })
             
         return JSONResponse(content=result)
+    except urllib.error.HTTPError as he:
+        try:
+            err_body = he.read().decode('utf-8')
+        except Exception:
+            err_body = str(he)
+        print(f"[History API] HTTP Error {he.code}: {err_body}")
+        return JSONResponse(content={"error": f"InfluxDB HTTP {he.code}", "details": err_body}, status_code=500)
+    except urllib.error.URLError as ue:
+        print(f"[History API] URL Error (Cannot connect to InfluxDB): {ue}")
+        return JSONResponse(content={"error": "Cannot connect to InfluxDB", "details": str(ue.reason)}, status_code=500)
     except Exception as e:
         print(f"[History API] Error: {e}")
-        return JSONResponse(content={}, status_code=500)
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.get("/api/status")
 async def api_status():
