@@ -191,7 +191,7 @@ function drawUnifiedTopology(ips) {
                     best: h.best,
                     worst: h.worst,
                     stdev: h.stdev,
-                    is_target: h.ip === targetIp,
+                    is_target: h.ip === targetIp || h.ip.includes(targetIp),
                     targets: [targetIdx],
                     children: []
                 };
@@ -261,7 +261,10 @@ function drawUnifiedTopology(ips) {
         .attr('fill', '#374151')
         .text(d => {
             if (d.data.ip === 'localhost') return 'Source';
-            if (d.data.is_target) return getTargetName(d.data.ip);
+            if (d.data.is_target) {
+                const actualTargetIp = ips[d.data.targets[0]];
+                return getTargetName(actualTargetIp);
+            }
             return d.data.ip !== 'no reply' ? `Hop ${d.data.hop}` : `Hop ${d.data.hop} (Timeout)`;
         });
 
