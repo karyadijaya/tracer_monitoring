@@ -98,13 +98,13 @@ def _flush_to_influx(target_ip: str, hops: dict) -> None:
         lines = []
         now_ns = int(time.time() * 1_000_000_000)
         for hop_num, h in hops.items():
-            hop_ip = h.get("ip", "???")
-            loss = h.get("loss_pct", 0.0)
-            avg = h.get("avg", 0.0)
-            best = h.get("best", 0.0)
-            worst = h.get("worst", 0.0)
-            last = h.get("last", 0.0)
-            stdev = h.get("stdev", 0.0)
+            hop_ip = str(h.get("ip", "???")).replace(" ", "\\ ").replace(",", "\\,").replace("=", "\\=")
+            loss = float(h.get("loss_pct", 0.0) or 0.0)
+            avg = float(h.get("avg", 0.0) or 0.0)
+            best = float(h.get("best", 0.0) or 0.0)
+            worst = float(h.get("worst", 0.0) or 0.0)
+            last = float(h.get("last", 0.0) or 0.0)
+            stdev = float(h.get("stdev", 0.0) or 0.0)
             lines.append(f"mtr_hop_stats,target_ip={target_ip},hop_number={hop_num},hop_ip={hop_ip} loss_pct={loss},avg_rtt={avg},best_rtt={best},worst_rtt={worst},last_rtt={last},stdev_rtt={stdev} {now_ns}")
 
         if hops:
