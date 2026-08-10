@@ -113,11 +113,12 @@ def _flush_to_influx(target_ip: str, hops: dict) -> None:
             max_worst = max([h.get("worst", 0.0) for h in hops.values()])
             is_reached = 1.0 if cache[target_ip]["is_reached"] else 0.0
             
-            end_loss = last_hop.get("loss_pct", 0.0)
-            end_avg = last_hop.get("avg", 0.0)
-            end_stdev = last_hop.get("stdev", 0.0)
+            end_loss = float(last_hop.get("loss_pct", 0.0) or 0.0)
+            end_avg = float(last_hop.get("avg", 0.0) or 0.0)
+            end_stdev = float(last_hop.get("stdev", 0.0) or 0.0)
+            max_worst = float(max_worst or 0.0)
             
-            lines.append(f"mtr_summary,target_ip={target_ip} total_hops={float(max_hop)},is_reached={is_reached},end_loss_pct={end_loss},end_avg_rtt={end_avg},end_worst_rtt={float(max_worst)},end_stdev_rtt={float(end_stdev)} {now_ns}")
+            lines.append(f"mtr_summary,target_ip={target_ip} total_hops={float(max_hop)},is_reached={is_reached},end_loss_pct={end_loss},end_avg_rtt={end_avg},end_worst_rtt={max_worst},end_stdev_rtt={end_stdev} {now_ns}")
 
         if not lines:
             return
@@ -135,6 +136,9 @@ def _flush_to_influx(target_ip: str, hops: dict) -> None:
         )
         with urllib.request.urlopen(req, timeout=5) as response:
             pass
+    except urllib.error.HTTPError as he:
+        err_body = he.read().decode('utf-8', errors='ignore')
+        print(f"[InfluxDB] Write error → {target_ip}: HTTP Error {he.code}: {err_body}")
     except Exception as e:
         print(f"[InfluxDB] Write error → {target_ip}: {e}")
 
