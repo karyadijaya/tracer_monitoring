@@ -117,7 +117,9 @@ async def remove_target(ip: str, db: Session = Depends(get_db)):
     return {"status": "ok", "message": "Target removed"}
 def _fetch_influx_csv(req):
     with urllib.request.urlopen(req, timeout=10) as response:
-        return response.read().decode('utf-8').strip().split('\n')
+        lines = response.read().decode('utf-8').splitlines()
+        # Remove empty lines and InfluxDB annotations (#datatype, #group, #default)
+        return [line for line in lines if line.strip() and not line.startswith('#')]
 
 @app.get("/api/history")
 async def api_history(minutes: int = 30):
@@ -145,7 +147,7 @@ async def api_history(minutes: int = 30):
         
         req = urllib.request.Request(
             f"{INFLUX_URL}/api/v2/query?org={INFLUX_ORG}",
-            data=json.dumps({"query": query, "dialect": {"annotations": [], "header": True}}).encode('utf-8'),
+            data=json.dumps({"query": query}).encode('utf-8'),
             headers={
                 "Authorization": f"Token {INFLUX_TOKEN}",
                 "Content-Type": "application/json",
