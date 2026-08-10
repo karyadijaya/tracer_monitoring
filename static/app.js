@@ -201,6 +201,11 @@ function drawUnifiedTopology(ips) {
                 if (!nodeMap[nodeId].targets.includes(targetIdx)) {
                     nodeMap[nodeId].targets.push(targetIdx);
                 }
+                if (h.ip === targetIp || h.ip.includes(targetIp)) {
+                    nodeMap[nodeId].is_target = true;
+                    // Move this targetIdx to the front so it colors/names correctly
+                    nodeMap[nodeId].targets = [targetIdx, ...nodeMap[nodeId].targets.filter(t => t !== targetIdx)];
+                }
             }
             parentId = nodeId;
         });
