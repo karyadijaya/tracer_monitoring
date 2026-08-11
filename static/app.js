@@ -250,6 +250,8 @@ function drawUnifiedTopology(ips) {
     // Use FontAwesome icons instead of circles
     node.append('text')
         .attr('class', 'fa-solid')
+        .attr('font-family', '"Font Awesome 6 Free"')
+        .attr('font-weight', '900')
         .attr('text-anchor', 'middle')
         .attr('dominant-baseline', 'central')
         .attr('font-size', d => d.data.is_target ? '22px' : '16px')
