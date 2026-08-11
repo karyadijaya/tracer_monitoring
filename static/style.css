@@ -337,7 +337,7 @@ main {
 /* ── TOPOLOGY ROW ──────────────────────────────────────────── */
 .topo-row {
     display: grid;
-    grid-template-columns: 2fr 8fr;
+    grid-template-columns: 3fr 7fr;
     gap: 1.25rem;
 }
 

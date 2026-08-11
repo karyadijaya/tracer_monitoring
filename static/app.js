@@ -244,16 +244,9 @@ function drawUnifiedTopology(ips) {
     const dynamicWidth = maxDepth * minWidthPerHop;
     const treeWidth = Math.max(W - margin.left - margin.right, dynamicWidth);
     
-    // Set initial transform (fit to screen if very wide) or restore previous state
+    // Set initial transform (100% scale) or restore previous state
     if (!window.topologyZoomState) {
-        const totalRequiredWidth = treeWidth + margin.left + margin.right;
-        let initialScale = 1;
-        if (totalRequiredWidth > W) {
-            initialScale = W / totalRequiredWidth;
-        }
-        window.topologyZoomState = d3.zoomIdentity
-            .translate(margin.left * initialScale, margin.top * initialScale)
-            .scale(initialScale);
+        window.topologyZoomState = d3.zoomIdentity.translate(margin.left, margin.top);
     }
     
     svgRoot.call(zoomBehavior.transform, window.topologyZoomState);
