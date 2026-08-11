@@ -169,7 +169,6 @@ window.removeTarget = async function removeTarget(ip) {
 // ── TOPOLOGY (Tree Structure) ──
 function drawUnifiedTopology(ips) {
     const wrap = document.getElementById('network-topology');
-    d3.select(wrap).selectAll('*').remove();
     
     // Build a simple tree by merging hops with the same IP and Hop number
     const root = { id: 'localhost', hop: 0, children: [], ip: 'localhost' };
@@ -183,18 +182,11 @@ function drawUnifiedTopology(ips) {
             const nodeId = `${h.hop}_${h.ip}`;
             if (!nodeMap[nodeId]) {
                 const newNode = {
-                    id: nodeId,
-                    hop: h.hop,
-                    ip: h.ip,
-                    geo: h.geo,
-                    loss_pct: h.loss_pct,
-                    avg: h.avg,
-                    best: h.best,
-                    worst: h.worst,
-                    stdev: h.stdev,
+                    id: nodeId, hop: h.hop, ip: h.ip, geo: h.geo,
+                    loss_pct: h.loss_pct, avg: h.avg, best: h.best,
+                    worst: h.worst, stdev: h.stdev,
                     is_target: h.ip === targetIp || h.ip.includes(targetIp),
-                    targets: [targetIdx],
-                    children: []
+                    targets: [targetIdx], children: []
                 };
                 nodeMap[nodeId] = newNode;
                 nodeMap[parentId].children.push(newNode);
@@ -204,7 +196,6 @@ function drawUnifiedTopology(ips) {
                 }
                 if (h.ip === targetIp || h.ip.includes(targetIp)) {
                     nodeMap[nodeId].is_target = true;
-                    // Move this targetIdx to the front so it colors/names correctly
                     nodeMap[nodeId].targets = [targetIdx, ...nodeMap[nodeId].targets.filter(t => t !== targetIdx)];
                 }
             }
@@ -217,35 +208,39 @@ function drawUnifiedTopology(ips) {
     const H = rect.height || 460;
     const margin = { top: 40, right: 120, bottom: 40, left: 120 };
 
-    const svgRoot = d3.select(wrap).append('svg')
-        .attr('width', W).attr('height', H);
+    let svgRoot = d3.select(wrap).select('svg');
+    let g;
 
-    const zoomBehavior = d3.zoom()
-        .scaleExtent([0.1, 4])
-        .on("zoom", (e) => {
-            window.topologyZoomState = e.transform;
-            g.attr("transform", e.transform);
-        });
+    if (svgRoot.empty()) {
+        svgRoot = d3.select(wrap).append('svg')
+            .attr('width', W).attr('height', H);
 
-    svgRoot.call(zoomBehavior);
+        const zoomBehavior = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (e) => {
+                window.topologyZoomState = e.transform;
+                svgRoot.select('g.main-group').attr("transform", e.transform);
+            });
 
-    // Invisible rect to capture all mouse events for zooming/panning
-    svgRoot.append('rect')
-        .attr('width', W).attr('height', H)
-        .style('fill', 'none')
-        .style('pointer-events', 'all');
+        svgRoot.call(zoomBehavior);
 
-    const g = svgRoot.append('g');
-    const hierarchy = d3.hierarchy(root);
-    
-    // Set initial transform (100% scale) or restore previous state
-    if (!window.topologyZoomState) {
-        window.topologyZoomState = d3.zoomIdentity.translate(margin.left, margin.top);
+        svgRoot.append('rect')
+            .attr('width', W).attr('height', H)
+            .style('fill', 'none')
+            .style('pointer-events', 'all');
+
+        g = svgRoot.append('g').attr('class', 'main-group');
+        
+        if (!window.topologyZoomState) {
+            window.topologyZoomState = d3.zoomIdentity.translate(margin.left, margin.top);
+        }
+        svgRoot.call(zoomBehavior.transform, window.topologyZoomState);
+    } else {
+        svgRoot.attr('width', W).attr('height', H);
+        svgRoot.select('rect').attr('width', W).attr('height', H);
+        g = svgRoot.select('g.main-group');
     }
-    
-    svgRoot.call(zoomBehavior.transform, window.topologyZoomState);
-    
-    // Use rigid width strictly bounded by screen/container width
+    const hierarchy = d3.hierarchy(root);
     const treeWidth = W - margin.left - margin.right;
     const treeLayout = d3.tree().size([H - margin.top - margin.bottom, treeWidth]);
     const treeData = treeLayout(hierarchy);
@@ -253,26 +248,67 @@ function drawUnifiedTopology(ips) {
     const nodes = treeData.descendants();
     const links = treeData.links();
 
-    // Links
+    // Links (join pattern)
     g.selectAll('.link')
-        .data(links)
-        .enter().append('path')
-        .attr('class', 'link')
-        .attr('fill', 'none')
+        .data(links, d => d.target.data.id)
+        .join(
+            enter => enter.append('path')
+                .attr('class', 'link')
+                .attr('fill', 'none')
+                .attr('stroke-width', 2)
+                .attr('d', d3.linkHorizontal().x(d => d.source.y).y(d => d.source.x)) // Start from parent for animation
+        )
         .attr('stroke', d => d.target.data.loss_pct > 10 ? '#EF4444' : d.target.data.loss_pct > 0 ? '#F59E0B' : '#10B981')
-        .attr('stroke-width', 2)
+        .transition().duration(500)
         .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x));
 
-    // Nodes
+    // Nodes (join pattern)
     const node = g.selectAll('.node')
-        .data(nodes)
-        .enter().append('g')
-        .attr('class', 'node')
+        .data(nodes, d => d.data.id)
+        .join(
+            enter => {
+                const nodeEnter = enter.append('g').attr('class', 'node')
+                    .attr('transform', d => `translate(${d.parent ? d.parent.y : d.y},${d.parent ? d.parent.x : d.x})`); // start at parent
+
+                nodeEnter.append('text').attr('class', 'icon-text fa-solid');
+                nodeEnter.append('text').attr('class', 'label-text');
+
+                // Tooltip events
+                nodeEnter.on('mouseover', (event, d) => {
+                    const tooltip = document.getElementById('d3-tooltip');
+                    if (d.data.ip === 'localhost') return;
+                    tooltip.style.opacity = '1';
+                    const color = (d.data.loss_pct > 10) ? '#EF4444' : (d.data.loss_pct > 0) ? '#F59E0B' : '#10B981';
+                    const geoStr = d.data.geo && d.data.geo !== "Unknown" ? `Location: <b>${d.data.geo}</b><br>` : '';
+                    tooltip.innerHTML = `
+                        <b>Hop ${d.data.hop}</b><br>
+                        Host/IP: ${d.data.ip}<br>
+                        ${geoStr}Loss: <b style="color:${color}">${d.data.loss_pct}%</b><br>
+                        Avg: ${d.data.avg} ms &nbsp; Best: ${d.data.best || d.data.avg} ms<br>
+                        Worst: ${d.data.worst || d.data.avg} ms &nbsp; StDev: ${d.data.stdev || 0}
+                    `;
+                    tooltip.style.left = (event.clientX + 15) + 'px';
+                    tooltip.style.top = (event.clientY - 28) + 'px';
+                })
+                .on('mousemove', event => {
+                    const tooltip = document.getElementById('d3-tooltip');
+                    tooltip.style.left = (event.clientX + 15) + 'px';
+                    tooltip.style.top = (event.clientY - 28) + 'px';
+                })
+                .on('mouseout', () => {
+                    document.getElementById('d3-tooltip').style.opacity = '0';
+                });
+
+                return nodeEnter;
+            }
+        );
+
+    // Transition positions
+    node.transition().duration(500)
         .attr('transform', d => `translate(${d.y},${d.x})`);
 
-    // Use FontAwesome icons instead of circles
-    node.append('text')
-        .attr('class', 'fa-solid')
+    // Update icons
+    node.select('.icon-text')
         .attr('font-family', '"Font Awesome 6 Free"')
         .attr('font-weight', '900')
         .attr('text-anchor', 'middle')
@@ -286,13 +322,14 @@ function drawUnifiedTopology(ips) {
             return '#10B981';
         })
         .text(d => {
-            if (d.data.ip === 'localhost') return '\uf108'; // fa-desktop
-            if (d.data.ip === 'no reply') return '\uf057'; // fa-circle-xmark
-            if (d.data.is_target) return '\uf233'; // fa-server
-            return '\uf6ff'; // fa-network-wired
+            if (d.data.ip === 'localhost') return '\uf108'; 
+            if (d.data.ip === 'no reply') return '\uf057'; 
+            if (d.data.is_target) return '\uf233'; 
+            return '\uf6ff'; 
         });
 
-    node.append('text')
+    // Update labels
+    node.select('.label-text')
         .attr('dy', d => d.data.is_target ? 6 : -16)
         .attr('x', d => d.data.is_target ? 22 : 0)
         .attr('text-anchor', d => d.data.is_target ? 'start' : 'middle')
@@ -307,29 +344,6 @@ function drawUnifiedTopology(ips) {
             }
             return d.data.ip !== 'no reply' ? `Hop ${d.data.hop}` : `Hop ${d.data.hop} (Timeout)`;
         });
-
-    // Tooltip implementation
-    const tooltip = document.getElementById('d3-tooltip');
-    node.on('mouseover', (event, d) => {
-            if (d.data.ip === 'localhost') return;
-            tooltip.style.opacity = '1';
-            const color = (d.data.loss_pct > 10) ? '#EF4444' : (d.data.loss_pct > 0) ? '#F59E0B' : '#10B981';
-            const geoStr = d.data.geo && d.data.geo !== "Unknown" ? `Location: <b>${d.data.geo}</b><br>` : '';
-            tooltip.innerHTML = `
-                <b>Hop ${d.data.hop}</b><br>
-                Host/IP: ${d.data.ip}<br>
-                ${geoStr}Loss: <b style="color:${color}">${d.data.loss_pct}%</b><br>
-                Avg: ${d.data.avg} ms &nbsp; Best: ${d.data.best || d.data.avg} ms<br>
-                Worst: ${d.data.worst || d.data.avg} ms &nbsp; StDev: ${d.data.stdev || 0}
-            `;
-            tooltip.style.left = (event.clientX + 12) + 'px';
-            tooltip.style.top  = (event.clientY - 10) + 'px';
-        })
-        .on('mousemove', event => {
-            tooltip.style.left = (event.clientX + 12) + 'px';
-            tooltip.style.top  = (event.clientY - 10) + 'px';
-        })
-        .on('mouseout', () => { document.getElementById('d3-tooltip').style.opacity = '0'; });
 }
 
 // ── CHARTS (D3 Multi-Bar/Line) ──
