@@ -669,7 +669,6 @@ function populateSummaryTable(ips) {
         tbody.insertAdjacentHTML('beforeend', `
             <tr>
                 <td><span class="status-dot" style="background:${color}; display:inline-block; margin-right:6px"></span>${ip}</td>
-                <td>${statusBadge}</td>
                 <td>${numHops}</td>
                 <td>${avgRtt} ms</td>
                 <td>${worst} ms</td>
