@@ -34,8 +34,10 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # ─── Lifecycle: start collector saat app start ───────────────────────────────
 @app.on_event("startup")
 async def startup_event():
+    from backend.collector import start_all_collectors, geoip_worker
     asyncio.create_task(start_all_collectors())
-    print("[Server] MTR collectors started.")
+    asyncio.create_task(geoip_worker())
+    print("[Server] MTR collectors and GeoIP worker started.")
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -60,6 +62,7 @@ async def api_latest():
             hops_list.append({
                 "hop":      hop_num,
                 "ip":       h.get("ip",       "???"),
+                "geo":      h.get("geo",      ""),
                 "avg":      round(h.get("avg",      0.0), 3),
                 "best":     round(h.get("best",     0.0), 3),
                 "worst":    round(h.get("worst",    0.0), 3),

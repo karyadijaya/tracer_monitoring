@@ -186,6 +186,7 @@ function drawUnifiedTopology(ips) {
                     id: nodeId,
                     hop: h.hop,
                     ip: h.ip,
+                    geo: h.geo,
                     loss_pct: h.loss_pct,
                     avg: h.avg,
                     best: h.best,
@@ -279,10 +280,11 @@ function drawUnifiedTopology(ips) {
             if (d.data.ip === 'localhost') return;
             tooltip.style.opacity = '1';
             const color = (d.data.loss_pct > 10) ? '#EF4444' : (d.data.loss_pct > 0) ? '#F59E0B' : '#10B981';
+            const geoStr = d.data.geo && d.data.geo !== "Unknown" ? `Location: <b>${d.data.geo}</b><br>` : '';
             tooltip.innerHTML = `
                 <b>Hop ${d.data.hop}</b><br>
                 Host/IP: ${d.data.ip}<br>
-                Loss: <b style="color:${color}">${d.data.loss_pct}%</b><br>
+                ${geoStr}Loss: <b style="color:${color}">${d.data.loss_pct}%</b><br>
                 Avg: ${d.data.avg} ms &nbsp; Best: ${d.data.best || d.data.avg} ms<br>
                 Worst: ${d.data.worst || d.data.avg} ms &nbsp; StDev: ${d.data.stdev || 0}
             `;

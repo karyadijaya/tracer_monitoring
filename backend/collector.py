@@ -43,6 +43,41 @@ from backend.database import get_db, TargetIP
 cache: dict = {}
 _active_tasks: dict[str, asyncio.Task] = {}
 
+# ─── GeoIP Lookup ─────────────────────────────────────────────────────────────
+geoip_cache: dict[str, str] = {}
+geoip_queue: asyncio.Queue = asyncio.Queue()
+
+async def geoip_worker():
+    """Background worker to resolve IPs sequentially and avoid API rate limits."""
+    while True:
+        ip = await geoip_queue.get()
+        if ip not in geoip_cache:
+            try:
+                # Use ip-api.com (limit 45 req/min -> max 1 req every 1.33s)
+                url = f"http://ip-api.com/json/{ip}?fields=status,country,city"
+                req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                
+                def fetch_geo():
+                    with urllib.request.urlopen(req, timeout=5) as response:
+                        return json.loads(response.read().decode('utf-8'))
+                
+                data = await asyncio.to_thread(fetch_geo)
+                if data.get("status") == "success":
+                    city = data.get("city", "")
+                    country = data.get("country", "")
+                    geo_str = f"{city}, {country}".strip(", ")
+                    geoip_cache[ip] = geo_str
+                else:
+                    geoip_cache[ip] = "Unknown"
+                    
+                await asyncio.sleep(1.5)  # Rate limit protection
+            except Exception as e:
+                print(f"[GeoIP] Failed to resolve {ip}: {e}")
+                geoip_cache[ip] = "Unknown"
+                await asyncio.sleep(1.5)  # Rate limit protection even on error
+                
+        geoip_queue.task_done()
+
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 def _parse_mtr_json(mtr_output: str, target_ip: str) -> dict | None:
@@ -74,8 +109,15 @@ def _parse_mtr_json(mtr_output: str, target_ip: str) -> dict | None:
             if len(samples) > MAX_SAMPLES:
                 samples = samples[-MAX_SAMPLES:]
 
+            # Extract pure IP for GeoIP lookup
+            pure_ip = host.split()[0].replace(",", "_").replace("=", "_")
+            if pure_ip and pure_ip not in ["???", "no_reply"] and not pure_ip.startswith("10.") and not pure_ip.startswith("192.168.") and not pure_ip.startswith("172."):
+                if pure_ip not in geoip_cache:
+                    geoip_queue.put_nowait(pure_ip)
+
             result[hop_num] = {
                 "ip":       host,
+                "geo":      geoip_cache.get(pure_ip, ""),
                 "loss_pct": round(loss_pct, 1),
                 "snt":      snt,
                 "last":     round(last_ms, 3),
