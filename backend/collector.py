@@ -18,6 +18,7 @@ import json
 import math
 import subprocess
 import time
+import collections
 from datetime import datetime, timezone
 
 import urllib.request
@@ -44,7 +45,8 @@ cache: dict = {}
 _active_tasks: dict[str, asyncio.Task] = {}
 
 # ─── GeoIP Lookup ─────────────────────────────────────────────────────────────
-geoip_cache: dict[str, str] = {}
+MAX_GEOIP_CACHE_SIZE = 5000
+geoip_cache: collections.OrderedDict[str, str] = collections.OrderedDict()
 geoip_queue: asyncio.Queue = asyncio.Queue()
 
 async def geoip_worker():
@@ -66,6 +68,10 @@ async def geoip_worker():
                     geoip_cache[ip] = data.get("country", "")
                 else:
                     geoip_cache[ip] = "Unknown"
+                    
+                # Prevent Memory Leak: Limit cache size to act as an LRU Cache
+                if len(geoip_cache) > MAX_GEOIP_CACHE_SIZE:
+                    geoip_cache.popitem(last=False)
                     
                 await asyncio.sleep(0.5)  # Be nice to the free API
             except Exception as e:
