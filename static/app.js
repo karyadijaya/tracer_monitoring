@@ -217,11 +217,27 @@ function drawUnifiedTopology(ips) {
     const H = rect.height || 460;
     const margin = { top: 40, right: 120, bottom: 40, left: 120 };
 
-    const svg = d3.select(wrap).append('svg')
+    const svgRoot = d3.select(wrap).append('svg')
+        .attr('width', W).attr('height', H);
+
+    const zoomBehavior = d3.zoom()
+        .scaleExtent([0.1, 4])
+        .on("zoom", (e) => g.attr("transform", e.transform));
+
+    svgRoot.call(zoomBehavior);
+
+    // Invisible rect to capture all mouse events for zooming/panning
+    svgRoot.append('rect')
         .attr('width', W).attr('height', H)
-        .call(d3.zoom().on("zoom", (e) => svg.select("g").attr("transform", e.transform)))
-        .append('g')
-        .attr('transform', `translate(${margin.left},${margin.top})`);
+        .style('fill', 'none')
+        .style('pointer-events', 'all');
+
+    const g = svgRoot.append('g');
+    
+    // Set initial transform (margins)
+    svgRoot.call(zoomBehavior.transform, d3.zoomIdentity.translate(margin.left, margin.top));
+    
+    // Now use 'g' instead of 'svg' for the links and nodes below
 
     const hierarchy = d3.hierarchy(root);
     
@@ -238,7 +254,7 @@ function drawUnifiedTopology(ips) {
     const links = treeData.links();
 
     // Links
-    svg.selectAll('.link')
+    g.selectAll('.link')
         .data(links)
         .enter().append('path')
         .attr('class', 'link')
@@ -248,7 +264,7 @@ function drawUnifiedTopology(ips) {
         .attr('d', d3.linkHorizontal().x(d => d.y).y(d => d.x));
 
     // Nodes
-    const node = svg.selectAll('.node')
+    const node = g.selectAll('.node')
         .data(nodes)
         .enter().append('g')
         .attr('class', 'node')
