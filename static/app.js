@@ -238,12 +238,6 @@ function drawUnifiedTopology(ips) {
     const g = svgRoot.append('g');
     const hierarchy = d3.hierarchy(root);
     
-    // Calculate dynamic width to prevent squishing text on long paths
-    const maxDepth = hierarchy.height || 1;
-    const minWidthPerHop = 150; // Guarantee 150px spacing per hop
-    const dynamicWidth = maxDepth * minWidthPerHop;
-    const treeWidth = Math.max(W - margin.left - margin.right, dynamicWidth);
-    
     // Set initial transform (100% scale) or restore previous state
     if (!window.topologyZoomState) {
         window.topologyZoomState = d3.zoomIdentity.translate(margin.left, margin.top);
@@ -251,8 +245,8 @@ function drawUnifiedTopology(ips) {
     
     svgRoot.call(zoomBehavior.transform, window.topologyZoomState);
     
-    // Now use 'g' instead of 'svg' for the links and nodes below
-    
+    // Use rigid width strictly bounded by screen/container width
+    const treeWidth = W - margin.left - margin.right;
     const treeLayout = d3.tree().size([H - margin.top - margin.bottom, treeWidth]);
     const treeData = treeLayout(hierarchy);
 
