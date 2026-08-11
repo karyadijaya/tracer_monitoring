@@ -247,20 +247,29 @@ function drawUnifiedTopology(ips) {
         .attr('class', 'node')
         .attr('transform', d => `translate(${d.y},${d.x})`);
 
-    node.append('circle')
-        .attr('r', d => d.data.is_target ? 12 : 8)
-        .attr('fill', d => d.data.ip === 'no reply' ? '#F3F4F6' : '#FFFFFF')
-        .attr('stroke', d => {
+    // Use FontAwesome icons instead of circles
+    node.append('text')
+        .attr('class', 'fa-solid')
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'central')
+        .attr('font-size', d => d.data.is_target ? '22px' : '16px')
+        .attr('fill', d => {
             if (d.data.is_target) return getColor(d.data.targets[0]);
+            if (d.data.ip === 'no reply') return '#9CA3AF';
             if (d.data.loss_pct > 10) return '#EF4444';
             if (d.data.loss_pct > 0) return '#F59E0B';
             return '#10B981';
         })
-        .attr('stroke-width', 2.5);
+        .text(d => {
+            if (d.data.ip === 'localhost') return '\uf108'; // fa-desktop
+            if (d.data.ip === 'no reply') return '\uf057'; // fa-circle-xmark
+            if (d.data.is_target) return '\uf233'; // fa-server
+            return '\uf8cb'; // fa-router
+        });
 
     node.append('text')
-        .attr('dy', d => d.data.is_target ? 4 : -14)
-        .attr('x', d => d.data.is_target ? 18 : 0)
+        .attr('dy', d => d.data.is_target ? 6 : -16)
+        .attr('x', d => d.data.is_target ? 22 : 0)
         .attr('text-anchor', d => d.data.is_target ? 'start' : 'middle')
         .attr('font-size', '10px')
         .attr('font-weight', d => d.data.is_target ? '600' : '500')
