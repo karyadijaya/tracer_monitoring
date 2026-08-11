@@ -53,8 +53,8 @@ async def geoip_worker():
         ip = await geoip_queue.get()
         if ip not in geoip_cache:
             try:
-                # Use ip-api.com (limit 45 req/min -> max 1 req every 1.33s)
-                url = f"http://ip-api.com/json/{ip}?fields=status,country,city"
+                # Use api.country.is
+                url = f"https://api.country.is/{ip}"
                 req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
                 
                 def fetch_geo():
@@ -62,15 +62,12 @@ async def geoip_worker():
                         return json.loads(response.read().decode('utf-8'))
                 
                 data = await asyncio.to_thread(fetch_geo)
-                if data.get("status") == "success":
-                    city = data.get("city", "")
-                    country = data.get("country", "")
-                    geo_str = f"{city}, {country}".strip(", ")
-                    geoip_cache[ip] = geo_str
+                if "country" in data:
+                    geoip_cache[ip] = data.get("country", "")
                 else:
                     geoip_cache[ip] = "Unknown"
                     
-                await asyncio.sleep(1.5)  # Rate limit protection
+                await asyncio.sleep(0.5)  # Be nice to the free API
             except Exception as e:
                 print(f"[GeoIP] Failed to resolve {ip}: {e}")
                 geoip_cache[ip] = "Unknown"

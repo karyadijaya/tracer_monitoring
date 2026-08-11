@@ -67,7 +67,7 @@ Aplikasi ini menggabungkan FastAPI sebagai API Server dan juga *Background Worke
 ### Menjalankan untuk Testing / Development
 Anda dapat menjalankannya dengan *Uvicorn*:
 ```bash
-venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 9000
+venv/bin/python m uvicorn backend.main:app --host 0.0.0.0 --port 9000-
 ```
 Buka browser dan akses ke `http://<IP_SERVER_ANDA>:9000/`.
 
@@ -85,7 +85,7 @@ Untuk lingkungan produksi, sangat disarankan menggunakan `systemd` agar aplikasi
    After=network.target
 
    [Service]
-   User=noc-scm
+   User=root
    WorkingDirectory=/var/project/tracer_monitoring
    ExecStart=/var/project/tracer_monitoring/venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 9000
    Restart=always
@@ -111,3 +111,15 @@ Untuk lingkungan produksi, sangat disarankan menggunakan `systemd` agar aplikasi
 * `backend/` : Berisi logika Python (FastAPI, integrasi Database SQLite, InfluxDB, dan `collector.py` untuk eksekusi MTR).
 * `static/` : Berisi *frontend* UI (HTML, CSS murni, dan `app.js` menggunakan D3.js untuk render grafik).
 * `targets.db` : Database SQLite lokal untuk menyimpan daftar IP target yang dimonitor.
+
+---
+
+## 🎨 Legenda Warna (Map Topology)
+
+Visualisasi topologi menggunakan indikator warna berikut untuk menggambarkan tingkat kesehatan (Packet Loss) pada setiap *hop/router*:
+
+*   🟢 **Hijau (Normal):** Packet Loss 0%. Jalur sangat stabil dan lancar.
+*   🟠 **Oranye/Kuning (Warning):** Packet Loss > 0% hingga 10%. Mulai terjadi ketidakstabilan atau sedikit paket yang hilang (*drop*).
+*   🔴 **Merah (Kritis):** Packet Loss > 10%. Indikasi gangguan serius, kongesti antrean, atau masalah pada kabel/router.
+*   ⚪ **Abu-abu (No Reply):** *Hop* memblokir ping/ICMP (*timeout*). Sangat wajar di internet publik.
+*   🔵 **Warna Lain (Biru, Emas, dll):** Digunakan khusus untuk titik akhir (*Target Endpoint*), di mana warnanya identik dengan warna garis grafik *Time Series* target tersebut di panel bawah.

@@ -264,7 +264,7 @@ function drawUnifiedTopology(ips) {
             if (d.data.ip === 'localhost') return '\uf108'; // fa-desktop
             if (d.data.ip === 'no reply') return '\uf057'; // fa-circle-xmark
             if (d.data.is_target) return '\uf233'; // fa-server
-            return '\uf8cb'; // fa-router
+            return '\uf6ff'; // fa-network-wired
         });
 
     node.append('text')
