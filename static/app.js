@@ -223,8 +223,15 @@ function drawUnifiedTopology(ips) {
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
 
-    const treeLayout = d3.tree().size([H - margin.top - margin.bottom, W - margin.left - margin.right]);
     const hierarchy = d3.hierarchy(root);
+    
+    // Calculate dynamic width to prevent squishing text on long paths
+    const maxDepth = hierarchy.height || 1;
+    const minWidthPerHop = 150; // Guarantee 150px spacing per hop
+    const dynamicWidth = maxDepth * minWidthPerHop;
+    const treeWidth = Math.max(W - margin.left - margin.right, dynamicWidth);
+    
+    const treeLayout = d3.tree().size([H - margin.top - margin.bottom, treeWidth]);
     const treeData = treeLayout(hierarchy);
 
     const nodes = treeData.descendants();
