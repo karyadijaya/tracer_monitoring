@@ -222,7 +222,10 @@ function drawUnifiedTopology(ips) {
 
     const zoomBehavior = d3.zoom()
         .scaleExtent([0.1, 4])
-        .on("zoom", (e) => g.attr("transform", e.transform));
+        .on("zoom", (e) => {
+            window.topologyZoomState = e.transform;
+            g.attr("transform", e.transform);
+        });
 
     svgRoot.call(zoomBehavior);
 
@@ -233,12 +236,6 @@ function drawUnifiedTopology(ips) {
         .style('pointer-events', 'all');
 
     const g = svgRoot.append('g');
-    
-    // Set initial transform (margins)
-    svgRoot.call(zoomBehavior.transform, d3.zoomIdentity.translate(margin.left, margin.top));
-    
-    // Now use 'g' instead of 'svg' for the links and nodes below
-
     const hierarchy = d3.hierarchy(root);
     
     // Calculate dynamic width to prevent squishing text on long paths
@@ -246,6 +243,22 @@ function drawUnifiedTopology(ips) {
     const minWidthPerHop = 150; // Guarantee 150px spacing per hop
     const dynamicWidth = maxDepth * minWidthPerHop;
     const treeWidth = Math.max(W - margin.left - margin.right, dynamicWidth);
+    
+    // Set initial transform (fit to screen if very wide) or restore previous state
+    if (!window.topologyZoomState) {
+        const totalRequiredWidth = treeWidth + margin.left + margin.right;
+        let initialScale = 1;
+        if (totalRequiredWidth > W) {
+            initialScale = W / totalRequiredWidth;
+        }
+        window.topologyZoomState = d3.zoomIdentity
+            .translate(margin.left * initialScale, margin.top * initialScale)
+            .scale(initialScale);
+    }
+    
+    svgRoot.call(zoomBehavior.transform, window.topologyZoomState);
+    
+    // Now use 'g' instead of 'svg' for the links and nodes below
     
     const treeLayout = d3.tree().size([H - margin.top - margin.bottom, treeWidth]);
     const treeData = treeLayout(hierarchy);
