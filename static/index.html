@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TRACEROUTE MONITOR — NOC Dashboard</title>
     <meta name="description" content="Real-time MTR traceroute network monitoring dashboard for NOC operations.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <!-- Alias agar vis-network bisa menemukan font dengan nama 'FontAwesome' -->
     <style>
@@ -21,6 +24,7 @@
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <link rel="stylesheet" href="/static/style.css?v=3">
 </head>
+
 <body>
 
     <!-- ── NAVBAR ─────────────────────────────────────────────────────── -->
@@ -50,16 +54,21 @@
     <main>
         <!-- Top Control Bar (Target Management) -->
         <section class="control-bar">
-            <h2 class="section-title" style="margin-bottom:0;"><i class="fa-solid fa-crosshairs"></i> Target Management</h2>
+            <h2 class="section-title" style="margin-bottom:0;"><i class="fa-solid fa-crosshairs"></i> Target Management
+            </h2>
             <div class="target-form" style="justify-content: space-between; display: flex;">
                 <div style="display: flex; gap: 1rem; align-items: center;">
                     <input type="text" id="new-target-ip" placeholder="IP Address (e.g. 8.8.8.8)" class="input-target">
-                    <input type="text" id="new-target-name" placeholder="Name (Optional)" class="input-target" style="width: 150px;">
-                    <button class="btn btn-primary" onclick="addTarget()"><i class="fa-solid fa-plus"></i> Add Target</button>
+                    <input type="text" id="new-target-name" placeholder="Name (Optional)" class="input-target"
+                        style="width: 150px;">
+                    <button class="btn btn-primary" onclick="addTarget()"><i class="fa-solid fa-plus"></i> Add
+                        Target</button>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem;">
-                    <label for="time-range" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Time Range:</label>
-                    <select id="time-range" class="input-target" style="padding: 6px 12px; width: auto;" onchange="window.onTimeRangeChange()">
+                    <label for="time-range" style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;">Time
+                        Range:</label>
+                    <select id="time-range" class="input-target" style="padding: 6px 12px; width: auto;"
+                        onchange="window.onTimeRangeChange()">
                         <option value="15">Last 15m</option>
                         <option value="30" selected>Last 30m</option>
                         <option value="60">Last 1h</option>
@@ -84,7 +93,7 @@
                 </div>
                 <div class="chart-wrap" id="hops-chart"></div>
             </div>
-            
+
             <div class="panel topo-panel" style="height: 500px; position: relative;">
                 <div class="panel-header">
                     <i class="fa-solid fa-network-wired" style="color:var(--accent)"></i>
@@ -92,18 +101,27 @@
                     <span class="panel-hint">(Shows combined path for all active targets)</span>
                 </div>
                 <div id="network-topology"></div>
-                <div class="topo-legend" style="padding: 10px 0; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 15px; color: var(--text-muted); justify-content: center; position: absolute; bottom: 10px; left: 0; right: 0; pointer-events: none;">
-                    <span style="display: flex; align-items: center; gap: 6px;"><span style="width:10px;height:10px;border-radius:50%;background:#FFFFFF;border:2px solid #10B981;"></span> 0% Loss</span>
-                    <span style="display: flex; align-items: center; gap: 6px;"><span style="width:10px;height:10px;border-radius:50%;background:#FFFFFF;border:2px solid #F59E0B;"></span> &lt;10% Loss</span>
-                    <span style="display: flex; align-items: center; gap: 6px;"><span style="width:10px;height:10px;border-radius:50%;background:#FFFFFF;border:2px solid #EF4444;"></span> &gt;10% Loss</span>
-                    <span style="display: flex; align-items: center; gap: 6px;"><span style="width:10px;height:10px;border-radius:50%;background:#F3F4F6;border:2px solid #ccc;"></span> No Reply</span>
+                <div class="topo-legend"
+                    style="padding: 10px 0; font-size: 0.75rem; display: flex; flex-wrap: wrap; gap: 15px; color: var(--text-muted); justify-content: center; position: absolute; bottom: 10px; left: 0; right: 0; pointer-events: none;">
+                    <span style="display: flex; align-items: center; gap: 6px;"><span
+                            style="width:10px;height:10px;border-radius:50%;background:#FFFFFF;border:2px solid #10B981;"></span>
+                        0% Loss</span>
+                    <span style="display: flex; align-items: center; gap: 6px;"><span
+                            style="width:10px;height:10px;border-radius:50%;background:#FFFFFF;border:2px solid #F59E0B;"></span>
+                        &lt;10% Loss</span>
+                    <span style="display: flex; align-items: center; gap: 6px;"><span
+                            style="width:10px;height:10px;border-radius:50%;background:#FFFFFF;border:2px solid #EF4444;"></span>
+                        &gt;10% Loss</span>
+                    <span style="display: flex; align-items: center; gap: 6px;"><span
+                            style="width:10px;height:10px;border-radius:50%;background:#F3F4F6;border:2px solid #ccc;"></span>
+                        No Reply</span>
                 </div>
             </div>
         </section>
 
         <!-- Row 2: Metrics Grid -->
         <section class="metrics-grid">
-            
+
             <div class="panel chart-panel">
                 <div class="panel-header">
                     <i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i>
@@ -128,7 +146,7 @@
                 <div class="chart-wrap" id="stdev-chart"></div>
             </div>
         </section>
-        
+
         <!-- Row 3: Detail Data Table -->
         <section class="panel table-panel">
             <div class="panel-header">
@@ -139,7 +157,7 @@
                 <table id="summary-table">
                     <thead>
                         <tr>
-                            <th>Target Name</th>
+                            <th>Name</th>
                             <th>Target IP</th>
                             <th>Hops</th>
                             <th>Avg RTT</th>
@@ -160,4 +178,5 @@
 
     <script src="/static/app.js?v=14"></script>
 </body>
+
 </html>
