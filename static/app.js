@@ -715,9 +715,11 @@ function populateSummaryTable(ips) {
         else if (numHops > 0) statusBadge = '<span class="badge unreachable"><i class="fa-solid fa-xmark"></i> Unreachable</span>';
 
         const color = getColor(idx);
+        const targetName = getTargetName(ip);
         
         tbody.insertAdjacentHTML('beforeend', `
             <tr>
+                <td style="font-weight: 500;">${targetName}</td>
                 <td><span class="status-dot" style="background:${color}; display:inline-block; margin-right:6px"></span>${ip}</td>
                 <td>${numHops}</td>
                 <td>${avgRtt} ms</td>
